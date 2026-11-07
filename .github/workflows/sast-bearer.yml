@@ -1,0 +1,43 @@
+name: SAST con Bearer # Nombre que se muestra en la pestaña Actions
+on: # Eventos que disparan el workflow
+  push: # Se ejecuta al hacer push
+    branches: [main] # Solo cuando el push es a la rama main
+  pull_request: # Se ejecuta al abrir o actualizar un Pull Request
+    branches: [main] # Solo si el PR apunta a main
+  workflow_dispatch: # Permite ejecutarlo manualmente desde GitHub
+permissions: # Permisos mínimos que se le dan al token del workflow
+  contents: read # Solo lectura del código del repositorio
+  security-events: write # Permite subir resultados a Security > Code scanning
+jobs: # Conjunto de trabajos del workflow
+  bearer: # Identificador del job de análisis
+    name: Bearer SAST # Nombre visible del job en la pestaña Actions
+    runs-on: ubuntu-latest # Máquina virtual Linux donde corre el job
+    steps: # Lista de pasos del job
+      - name: Descargar el código # Nombre del paso de checkout
+        uses: actions/checkout@v4 # Acción oficial que descarga el repositorio
+      - name: Escanear con Bearer (SARIF) # Paso que ejecuta el análisis y genera el reporte SARIF
+        uses: bearer/bearer-action@v2 # Acción oficial de Bearer para GitHub Actions
+        with: # Parámetros de la acción
+          path: . # Analiza todo el repositorio
+          format: sarif # Formato de salida compatible con Code scanning
+          output: results.sarif # Archivo donde se guarda el reporte SARIF
+          exit-code: 0 # Evita que el paso falle cuando Bearer encuentra hallazgos
+      - name: Subir SARIF a Code scanning # Paso que publica los resultados en Security > Code scanning
+        if: always() # Se ejecuta siempre, aunque un paso anterior haya fallado
+        uses: github/codeql-action/upload-sarif@v3 # Acción oficial de GitHub para subir archivos SARIF
+        with: # Parámetros de la acción
+          sarif_file: results.sarif # Archivo SARIF generado por Bearer en el paso anterior
+      - name: Escanear con Bearer (HTML) # Segundo escaneo que genera el reporte en formato HTML
+        if: always() # Se ejecuta siempre, aunque un paso anterior haya fallado
+        uses: bearer/bearer-action@v2 # Acción oficial de Bearer para GitHub Actions
+        with: # Parámetros de la acción
+          path: . # Analiza todo el repositorio
+          format: html # Formato de salida HTML para lectura humana
+          output: bearer-report.html # Archivo donde se guarda el reporte HTML
+          exit-code: 0 # Evita que el paso falle cuando Bearer encuentra hallazgos
+      - name: Guardar reporte HTML como artefacto # Paso que publica el HTML como archivo descargable
+        if: always() # Se ejecuta siempre, aunque un paso anterior haya fallado
+        uses: actions/upload-artifact@v4 # Acción oficial para guardar artefactos de la ejecución
+        with: # Parámetros de la acción
+          name: bearer-report-html # Nombre del artefacto que se verá en la ejecución
+          path: bearer-report.html # Archivo que se guarda como artefacto
